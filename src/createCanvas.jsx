@@ -1,7 +1,31 @@
 import React from 'react';
 import { inject, observer } from 'mobx-react';
-import vert from './vertexShader.glsl';
-import frag from './fragmentShader.glsl';
+import ver from './vertexShader.glsl';
+import fra from './fragmentShader.glsl';
+
+const position = [
+  -1.0,
+  1.0,
+  0.0,
+  1.0,
+  1.0,
+  0.0,
+  -1.0,
+  -1.0,
+  0.0,
+  1.0,
+  -1.0,
+  0.0
+];
+const index = [0, 2, 1, 1, 2, 3];
+
+const fsMain = `
+void main( void ){
+  vec4 color = vec4(0.0,0.0,0.0,1.0);
+  mainImage( color, gl_FragCoord.xy );
+  color.w = 1.0;
+  gl_FragColor = color;
+}`;
 
 const create_program = (gl, vs, fs) => {
   const program = gl.createProgram();
@@ -28,104 +52,94 @@ const create_shader = (gl, text, type) => {
   }
 };
 
-const create_vbo = (gl, data) => {
-  const vbo = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  return vbo;
-};
-
-const create_ibo = (gl, data) => {
-  const ibo = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-  return ibo;
-};
-
-const set_attribute = (gl, vbo, attL, attS) => {
-  vbo.forEach((e, i, a) => {
-    gl.bindBuffer(gl.ARRAY_BUFFER, e);
-    gl.enableVertexAttribArray(attL[i]);
-    gl.vertexAttribPointer(attL[i], attS[i], gl.FLOAT, false, 0, 0);
-  });
-};
-
-const webGLStart = (canvas, gl, vs, fs) => { 
-  const prg = create_program(
+const initMainProgram = (gl, ex, vs, fs) => {
+  const mainPrg = create_program(
     gl,
     create_shader(gl, vs, gl.VERTEX_SHADER),
     create_shader(gl, fs, gl.FRAGMENT_SHADER)
   );
 
-  const uniLocation = [];
-  uniLocation[0] = gl.getUniformLocation(prg, 'iTime');
-  uniLocation[1] = gl.getUniformLocation(prg, 'iResolution');
+  const mainUniLocation = [];
+  mainUniLocation[0] = gl.getUniformLocation(mainPrg, 'iTime');
+  mainUniLocation[1] = gl.getUniformLocation(mainPrg, 'iResolution');
 
-  const position = [
-    -1.0,
-    1.0,
-    0.0,
-    1.0,
-    1.0,
-    0.0,
-    -1.0,
-    -1.0,
-    0.0,
-    1.0,
-    -1.0,
-    0.0
-  ];
-  const index = [0, 2, 1, 1, 2, 3];
-  const attLocation = [];
-  const attStride = [];
+  const mainAttLocation = gl.getAttribLocation(mainPrg, 'position');
+  const mainAttStride = 3;
 
-  const vPosition = create_vbo(gl, position);
-  attLocation[0] = gl.getAttribLocation(prg, 'position');
-  attStride[0] = 3;
+  const mainVao = ex.createVertexArrayOES();
+  ex.bindVertexArrayOES(mainVao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(position), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(mainAttLocation);
+  gl.vertexAttribPointer(mainAttLocation, mainAttStride, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(index), gl.STATIC_DRAW);
+  ex.bindVertexArrayOES(null);
 
-  const vIndex = create_ibo(gl, index);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vIndex);
+  return {
+    mainPrg: mainPrg,
+    mainUniLocation: mainUniLocation,
+    mainVao: mainVao
+  };
+};
 
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+const webGLStart = (vs, rc, rgl, fs) => {
+  const re =
+    rgl.getExtension('OES_vertex_array_object') ||
+    rgl.getExtension('MOZ_OES_vertex_array_object') ||
+    rgl.getExtension('WEBKIT_OES_vertex_array_object');
+  if (!re) {
+    alert('vertex array object not supported');
+    null;
+  }
+
+  const { mainPrg, mainUniLocation, mainVao } = initMainProgram(
+    rgl,
+    re,
+    vs,
+    fs
+  );
+
+  rgl.clearColor(0.0, 0.0, 0.0, 1.0);
 
   const startTime = new Date().getTime();
 
   const render = () => {
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    rgl.clear(rgl.COLOR_BUFFER_BIT);
     const time = (new Date().getTime() - startTime) * 0.001;
-    gl.uniform1f(uniLocation[0], time);
-    gl.uniform2fv(uniLocation[1], [canvas.width, canvas.height]);
-    set_attribute(gl, [vPosition], attLocation, attStride);
-    gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
-    gl.flush();
+    rgl.useProgram(mainPrg);
+    re.bindVertexArrayOES(mainVao);
+    rgl.uniform1f(mainUniLocation[0], time);
+    rgl.uniform2fv(mainUniLocation[1], [rc.width, rc.height]);
+    rgl.drawElements(rgl.TRIANGLES, index.length, rgl.UNSIGNED_SHORT, 0);
+    rgl.flush();
   };
-
-  return render;
+  return { render: render};
 };
 
 @inject(({ state }) => ({
   windowWidth: state.windowWidth,
   windowHeight: state.windowHeight,
   updateWindowSize: state.updateWindowSize,
-  canvas: state.canvas,
-  glContext: state.glContext,
-  updateCanvas: state.updateCanvas,
-  updateGlContext: state.updateGlContext
+  renderCanvas: state.renderCanvas,
+  renderGl: state.renderGl,
+  updateRenderCanvas: state.updateRenderCanvas,
+  updateRenderGl: state.updateRenderGl  
 }))
 @observer
 export default class CreateCanvas extends React.Component {
   componentDidMount() {
-    const canvas = this.canvas;
-    const glContext = canvas.getContext('webgl');
-    this.props.updateCanvas(canvas);
-    this.props.updateGlContext(glContext);
-    this.updateCanvas(canvas, glContext);
+    const renderCanvas = this.renderCanvas;
+    renderCanvas.width = this.props.windowWidth;
+    renderCanvas.height = this.props.windowHeight;    
+    const renderGl = renderCanvas.getContext('webgl');    
+    this.props.updateRenderCanvas(renderCanvas);
+    this.props.updateRenderGl(renderGl);    
+    this.updateGl(renderCanvas, renderGl);
     window.addEventListener('resize', this.handleResize);
   }
   componentWillUnmount() {
-    cancelAnimationFrame(this.requestId);
+    cancelAnimationFrame(this.requestId);    
     window.removeEventListener('resize', this.handleResize);
   }
   handleResize = e => {
@@ -133,25 +147,30 @@ export default class CreateCanvas extends React.Component {
     const height = e.target.innerHeight;
     this.props.updateWindowSize(width, height);
   };
-  updateCanvas = (canvas, glContext) => {
-    const render = webGLStart(canvas, glContext, vert(), frag());
+  updateGl = (renderCanvas, renderGl) => {
+    const { render} = webGLStart(
+      ver(),
+      renderCanvas,
+      renderGl,
+      fra() + fsMain      
+    );
     const renderLoop = () => {
       render();
       this.requestId = requestAnimationFrame(renderLoop);
     };
-    renderLoop();
+    renderLoop();    
   };
-  render() {    
-    return (
-      <canvas
-        style={{
-          width: this.props.windowWidth,
-          height: this.props.windowHeight
-        }}
-        ref={e => {
-          this.canvas = e;
-        }}
-      />
+  render() {
+    return (      
+        <canvas
+          style={{
+            width: this.props.windowWidth,
+            height: this.props.windowHeight
+          }}
+          ref={e => {
+            this.renderCanvas = e;
+          }}
+        />      
     );
   }
 }

@@ -1,24 +1,25 @@
+
 import { observable, computed, action } from 'mobx';
 
-export default class State {
+export default class State {  
   @observable windowWidth = window.innerWidth;
   @observable windowHeight = window.innerHeight;
   @action.bound
-  updateWindowSize(width,height) {
+  updateWindowSize(width, height) {
     this.windowWidth = width;
-    this.canvas.width = width;
+    this.renderCanvas.width = width;    
     this.windowHeight = height;
-    this.canvas.height = height;
-    this.glContext.viewport(0, 0, width, height);
+    this.renderCanvas.height = height;    
+    this.renderGl.viewport(0, 0, width, height);    
+  }
+  @observable renderCanvas = null;
+  @action.bound
+  updateRenderCanvas(element) {
+    this.renderCanvas = element;
+  }
+  @observable renderGl = null;
+  @action.bound
+  updateRenderGl(context) {
+    this.renderGl = context;
   }  
-  @observable canvas = null;
-  @action.bound
-  updateCanvas(element) {
-    this.canvas = element;
-  }
-  @observable glContext = null;
-  @action.bound
-  updateGlContext(context) {
-    this.glContext = context;
-  }
 }

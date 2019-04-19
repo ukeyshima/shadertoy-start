@@ -21,5 +21,5 @@ export default class State {
   @action.bound
   updateRenderGl(context) {
     this.renderGl = context;
-  }  
+  }    
 }

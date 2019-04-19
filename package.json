@@ -24,5 +24,8 @@
     "mobx": "^5.8.0",
     "mobx-react": "^5.4.3",
     "glsl-loader": "0.0.1"
+  },
+  "dependencies": {
+    "click": "^0.1.0"
   }
 }
